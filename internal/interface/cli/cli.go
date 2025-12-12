@@ -8,6 +8,9 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+	"unicode/utf8"
+
+	"golang.org/x/term"
 )
 
 type CommandInfo struct {
@@ -17,18 +20,20 @@ type CommandInfo struct {
 }
 
 type TimerCLI struct {
-	Phase     string
-	Remain    time.Duration
-	WorkTime  int
-	BreakTime int
+	Phase        string
+	Remain       time.Duration
+	WorkTime     int
+	BreakTime    int
+	ConfirmPhase bool
 }
 
-func NewTimerCLI(workTime, breakTime int) *TimerCLI {
+func NewTimerCLI(workTime, breakTime int, confirmPhase bool) *TimerCLI {
 	return &TimerCLI{
-		Phase:     "Work",
-		Remain:    time.Duration(workTime) * time.Minute,
-		WorkTime:  workTime,
-		BreakTime: breakTime,
+		Phase:        "Work",
+		Remain:       time.Duration(workTime) * time.Minute,
+		WorkTime:     workTime,
+		BreakTime:    breakTime,
+		ConfirmPhase: confirmPhase,
 	}
 }
 
@@ -41,28 +46,41 @@ func (t *TimerCLI) OnTick(remain time.Duration, phase string) {
 func (t *TimerCLI) OnPhaseEnd(phase string) {
 	t.Phase = phase
 	t.Render()
-	fmt.Printf("\n--- %s phase ended! ---\n", t.Phase)
 	t.playNotificationSound()
+
+	if t.ConfirmPhase {
+		prompt := fmt.Sprintf("--- %s phase ended. Press any key to continue ---", t.Phase)
+		t.centerPromptAndWait(prompt)
+	} else {
+		prompt := fmt.Sprintf("--- %s phase ended ---", t.Phase)
+		t.centerPrompt(prompt)
+		time.Sleep(700 * time.Millisecond)
+	}
 }
 
 func (t *TimerCLI) Render() {
-	fmt.Print("\033[H\033[2J")
+	var lines []string
 
-	var phaseColor string
+	var phaseColorStart, phaseColorEnd string
 	if t.Phase == "Work" {
-		phaseColor = "\033[38;5;207m"
+		phaseColorStart = "\033[38;5;207m"
 	} else {
-		phaseColor = "\033[38;5;39m"
+		phaseColorStart = "\033[38;5;39m"
 	}
+	phaseColorEnd = "\033[0m"
 
 	minutes := int(t.Remain.Minutes())
 	seconds := int(t.Remain.Seconds()) % 60
+	timerLine := fmt.Sprintf("%02d:%02d", minutes, seconds)
 
 	bar := t.renderProgressBar()
 
-	fmt.Printf("%sPhase: %s\033[0m\n", phaseColor, t.Phase)
-	fmt.Printf("[%s] %02d:%02d\n", bar, minutes, seconds)
-	fmt.Printf("Press Ctrl+C to stop. Work=%dm Break=%dm\n", t.WorkTime, t.BreakTime)
+	lines = append(lines, fmt.Sprintf("%sPhase: %s%s", phaseColorStart, t.Phase, phaseColorEnd))
+	lines = append(lines, fmt.Sprintf("[%s]", bar))
+	lines = append(lines, timerLine)
+	lines = append(lines, fmt.Sprintf("Work=%dm Break=%dm", t.WorkTime, t.BreakTime))
+
+	t.centerOutput(lines)
 }
 
 func (t *TimerCLI) renderProgressBar() string {
@@ -90,19 +108,24 @@ func (t *TimerCLI) renderProgressBar() string {
 
 	width := 30
 	filled := int(progress * float64(width))
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
 
 	filledStr := strings.Repeat("#", filled)
 	emptyStr := strings.Repeat(" ", width-filled)
 
 	color := "\033[38;5;154m"
-	if progress > 0.66 {
-		color = "\033[38;5;208m"
-	} else if progress > 0.9 {
+	if progress > 0.9 {
 		color = "\033[38;5;196m"
+	} else if progress > 0.66 {
+		color = "\033[38;5;208m"
 	}
 
-	bar := fmt.Sprintf("%s%s\033[0m%s", color, filledStr, emptyStr)
-	return bar
+	return fmt.Sprintf("%s%s\033[0m%s", color, filledStr, emptyStr)
 }
 
 func (t *TimerCLI) playNotificationSound() {
@@ -111,6 +134,100 @@ func (t *TimerCLI) playNotificationSound() {
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "unable to play sound via ffplay: %v\n", err)
 	}
+}
+
+func (t *TimerCLI) centerOutput(lines []string) {
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width <= 0 || height <= 0 {
+		fmt.Print("\033[H\033[2J")
+		for _, ln := range lines {
+			fmt.Println(ln)
+		}
+		fmt.Printf("\033[999B")
+		return
+	}
+
+	maxLineWidth := 0
+	for _, ln := range lines {
+		l := visibleWidth(ln)
+		if l > maxLineWidth {
+			maxLineWidth = l
+		}
+	}
+
+	totalLines := len(lines)
+	topPad := (height - totalLines) / 2
+	if topPad < 0 {
+		topPad = 0
+	}
+
+	fmt.Print("\033[H\033[2J")
+
+	for i := 0; i < topPad; i++ {
+		fmt.Println()
+	}
+
+	for _, ln := range lines {
+		lineWidth := visibleWidth(ln)
+		leftPad := (width - lineWidth) / 2
+		if leftPad < 0 {
+			leftPad = 0
+		}
+
+		fmt.Print(strings.Repeat(" ", leftPad))
+		fmt.Println(ln)
+	}
+
+	fmt.Printf("\033[%d;1H", height)
+}
+
+func (t *TimerCLI) centerPrompt(msg string) {
+	t.centerOutput([]string{msg})
+}
+
+func (t *TimerCLI) centerPromptAndWait(msg string) {
+	t.centerPrompt(msg)
+	t.readAnyKey()
+}
+
+func (t *TimerCLI) readAnyKey() {
+	fd := int(os.Stdin.Fd())
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		var tmp string
+		fmt.Scanln(&tmp)
+		return
+	}
+	defer term.Restore(fd, oldState)
+
+	buf := make([]byte, 1)
+	_, err = os.Stdin.Read(buf)
+	if err != nil {
+	}
+}
+
+func visibleWidth(s string) int {
+	return utf8.RuneCountInString(stripAnsi(s))
+}
+
+func stripAnsi(s string) string {
+	var b strings.Builder
+	inEsc := false
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if !inEsc {
+			if ch == 0x1b { // ESC
+				inEsc = true
+				continue
+			}
+			b.WriteByte(ch)
+		} else {
+			if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
+				inEsc = false
+			}
+		}
+	}
+	return b.String()
 }
 
 func PrintHelp(cmds []CommandInfo) {

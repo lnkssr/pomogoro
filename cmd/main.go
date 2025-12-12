@@ -39,10 +39,12 @@ func main() {
 	var workMin int
 	var breakMin int
 	var cycles int
+	var confirmPhase bool
 
 	cmdRun.Flag.IntVar(&workMin, "w", 25, "work duration in minutes")
 	cmdRun.Flag.IntVar(&breakMin, "b", 5, "break duration in minutes")
 	cmdRun.Flag.IntVar(&cycles, "c", 4, "number of cycles")
+	cmdRun.Flag.BoolVar(&confirmPhase, "confirm-phase", false, "require pressing any key to continue after phase ends")
 
 	commandInfos := []cli.CommandInfo{
 		{Name: cmdRun.Name, Usage: cmdRun.Usage, Flag: cmdRun.Flag},
@@ -58,7 +60,7 @@ func main() {
 			os.Exit(2)
 		}
 
-		timerCLI := cli.NewTimerCLI(workMin, breakMin)
+		timerCLI := cli.NewTimerCLI(workMin, breakMin, confirmPhase)
 		timerUC := service.NewTimerUseCase(
 			time.Duration(workMin)*time.Minute,
 			time.Duration(breakMin)*time.Minute,
