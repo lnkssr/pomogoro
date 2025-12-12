@@ -33,7 +33,7 @@ func (t *TimerUseCase) Start(onTick func(time.Duration, string), onPhaseEnd func
 func (t *TimerUseCase) runTimer(timer *kernel.Timer, onTick func(time.Duration, string), onPhaseEnd func(string)) {
 	end := time.Now().Add(timer.Duration)
 	for time.Now().Before(end) {
-		remain := end.Sub(time.Now())
+		remain := time.Until(time.Now())
 		onTick(remain, timer.Phase)
 		time.Sleep(1 * time.Second)
 	}

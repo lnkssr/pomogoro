@@ -53,7 +53,9 @@ func main() {
 	}
 
 	cmdRun.Run = func(cmd *Command, args []string) {
-		cmd.Flag.Parse(args)
+		if err := cmd.Flag.Parse(args); err != nil {
+			fmt.Println("Error parsing flats:", err)
+		}
 
 		if workMin <= 0 || breakMin <= 0 || cycles <= 0 {
 			fmt.Fprintln(os.Stderr, "work, break and cycles must be positive integers")

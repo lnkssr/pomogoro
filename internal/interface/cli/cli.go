@@ -84,7 +84,7 @@ func (t *TimerCLI) Render() {
 }
 
 func (t *TimerCLI) renderProgressBar() string {
-	total := 1
+	var total int
 	if t.Phase == "Work" {
 		total = t.WorkTime * 60
 	} else {
@@ -195,14 +195,17 @@ func (t *TimerCLI) readAnyKey() {
 	oldState, err := term.MakeRaw(fd)
 	if err != nil {
 		var tmp string
-		fmt.Scanln(&tmp)
+		if _, err := fmt.Scanln(&tmp); err != nil {
+			fmt.Println("Error Scanln: ", err)
+		}
 		return
 	}
-	defer term.Restore(fd, oldState)
+	defer func() { _ = term.Restore(fd, oldState) }()
 
 	buf := make([]byte, 1)
 	_, err = os.Stdin.Read(buf)
 	if err != nil {
+		return
 	}
 }
 
@@ -232,16 +235,28 @@ func stripAnsi(s string) string {
 
 func PrintHelp(cmds []CommandInfo) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-	fmt.Fprintln(w, "Usage: pomogoro <command> [flags]\n")
-	fmt.Fprintln(w, "Available commands:")
+	if _, err := fmt.Fprintln(w, "Usage: pomogoro <command> [flags]"); err != nil {
+		return
+	}
+	if _, err := fmt.Fprintln(w, "Available commands:"); err != nil {
+		return
+	}
 	for _, c := range cmds {
-		fmt.Fprintf(w, "  %s\t%s\n", c.Name, c.Usage)
+		if _, err := fmt.Fprintf(w, "  %s\t%s\n", c.Name, c.Usage); err != nil {
+			return
+		}
 		if c.Flag != nil {
 			c.Flag.VisitAll(func(f *flag.Flag) {
-				fmt.Fprintf(w, "    -%s\t%s (default %v)\n", f.Name, f.Usage, f.DefValue)
+				if _, err := fmt.Fprintf(w, "    -%s\t%s (default %v)\n", f.Name, f.Usage, f.DefValue); err != nil {
+					return
+				}
 			})
 		}
 	}
-	fmt.Fprintln(w, "\nUse 'pomogoro help <command>' for details.")
-	w.Flush()
+	if _, err := fmt.Fprintln(w, "\nUse 'pomogoro help <command>' for details."); err != nil {
+		return
+	}
+	if err := w.Flush(); err != nil {
+		return
+	}
 }
