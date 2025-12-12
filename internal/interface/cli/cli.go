@@ -84,7 +84,7 @@ func (t *TimerCLI) Render() {
 }
 
 func (t *TimerCLI) renderProgressBar() string {
-	var total int
+	var total int = 1
 	if t.Phase == "Work" {
 		total = t.WorkTime * 60
 	} else {
