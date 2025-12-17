@@ -22,16 +22,16 @@ jobs:
           go-version: '1.25'
 
       - name: Install dependencies
-        run: go mod tidy
+        run: go mod download 
 
       - name: Run tests
         run: go test -v ./...
 
       - name: Build Go binaries
         run: |
-          GOOS=linux GOARCH=amd64 go build -o my-cli-linux-amd64 main.go
-          GOOS=darwin GOARCH=amd64 go build -o my-cli-darwin-amd64 main.go
-          GOOS=windows GOARCH=amd64 go build -o my-cli-windows-amd64.exe main.go
+          GOOS=linux GOARCH=amd64 go build -o my-cli-linux-amd64 ./cmd/main.go
+          GOOS=darwin GOARCH=amd64 go build -o my-cli-darwin-amd64 ./cmd/main.go
+          GOOS=windows GOARCH=amd64 go build -o my-cli-windows-amd64.exe ./cmd/main.go
 
       - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
