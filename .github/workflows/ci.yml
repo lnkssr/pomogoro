@@ -1,0 +1,52 @@
+name: pomogoro CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.25'
+
+      - name: Install dependencies
+        run: go mod tidy
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.50.1
+          sudo mv ./golangci-lint /usr/local/bin/golangci-lint
+
+      - name: Run golangci-lint
+        run: golangci-lint run --timeout 5m
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Build Go binaries
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o my-cli-linux-amd64 main.go
+          GOOS=darwin GOARCH=amd64 go build -o my-cli-darwin-amd64 main.go
+          GOOS=windows GOARCH=amd64 go build -o my-cli-windows-amd64.exe main.go
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: my-go-cli-binaries
+          path: |
+            my-cli-linux-amd64
+            my-cli-darwin-amd64
+            my-cli-windows-amd64.exe
+
