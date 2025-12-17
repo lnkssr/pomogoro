@@ -42,7 +42,7 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -o my-cli-windows-amd64.exe main.go
 
       - name: Upload binaries as artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: my-go-cli-binaries
           path: |
