@@ -29,16 +29,16 @@ jobs:
 
       - name: Build Go binaries
         run: |
-          GOOS=linux GOARCH=amd64 go build -o my-cli-linux-amd64 ./cmd/main.go
-          GOOS=darwin GOARCH=amd64 go build -o my-cli-darwin-amd64 ./cmd/main.go
-          GOOS=windows GOARCH=amd64 go build -o my-cli-windows-amd64.exe ./cmd/main.go
+          GOOS=linux GOARCH=amd64 go build -o pomogoro-linux-amd64 ./cmd/main.go
+          GOOS=darwin GOARCH=amd64 go build -o pomogoro-darwin-amd64 ./cmd/main.go
+          GOOS=windows GOARCH=amd64 go build -o pomogoro-windows-amd64.exe ./cmd/main.go
 
       - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: my-go-cli-binaries
           path: |
-            my-cli-linux-amd64
-            my-cli-darwin-amd64
-            my-cli-windows-amd64.exe
+            pomogoro-linux-amd64
+            pomogoro-darwin-amd64
+            pomogoro-windows-amd64.exe
 
